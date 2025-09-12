@@ -11,6 +11,7 @@ const PORT = 5000;
 
 // Middleware
 app.use(cors());
+app.use(express.json()); // 👉 necesario para leer JSON en POST
 
 // Multer setup: store files in memory
 const upload = multer({ storage: multer.memoryStorage() });
@@ -72,6 +73,33 @@ app.post("/process-image", upload.single("image"), async (req, res) => {
   } catch (err) {
     console.error("❌ Error processing image:", err);
     res.status(500).json({ error: "Failed to process image" });
+  }
+});
+
+// ✅ NEW: Route to process text and estimate calories
+app.post("/process-text", async (req, res) => {
+  try {
+    const { food } = req.body;
+
+    if (!food) {
+      return res.status(400).json({ error: "Food description is required" });
+    }
+
+    console.log("🍔 Received food text:", food);
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a nutrition assistant. Estimate calories based on food description." },
+        { role: "user", content: `Estimate the calories in: ${food}. Respond with only the number.` },
+      ],
+    });
+
+    const result = response.choices[0].message.content.trim();
+    res.json({ food, calories: result });
+  } catch (err) {
+    console.error("❌ Error processing text:", err);
+    res.status(500).json({ error: "Failed to process text" });
   }
 });
 
