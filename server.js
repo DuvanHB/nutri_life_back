@@ -45,7 +45,7 @@ const api = axios.create({
 async function checkFoodInImage(base64Image) {
   try {
     const response = await api.post("/chat/completions", {
-      model: "openrouter/sonoma-dusk-alpha", // vision model
+      model: process.env.MODEL_NAME, // vision model
       messages: [
         {
           role: "system",
