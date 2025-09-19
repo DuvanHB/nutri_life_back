@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import multer from "multer";
+import fs from "fs";
 import axios from "axios";
 import dotenv from "dotenv";
 
@@ -7,7 +9,9 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
-app.use(express.json()); // for parsing JSON requests
+app.use(express.json());
+
+const upload = multer({ dest: "uploads/" });
 
 // OpenRouter client
 const api = axios.create({
@@ -18,11 +22,11 @@ const api = axios.create({
   },
 });
 
-// Function to call OpenRouter
+// 📌 Call OpenRouter for text questions
 async function callOpenRouter(userMessage) {
   try {
     const response = await api.post("/chat/completions", {
-      model: "nvidia/nemotron-nano-9b-v2:free", // any supported model
+      model: "nvidia/nemotron-nano-9b-v2:free", // change if you want
       messages: [
         { role: "system", content: "You are a helpful assistant." },
         { role: "user", content: userMessage },
@@ -32,22 +36,63 @@ async function callOpenRouter(userMessage) {
     return response.data.choices[0].message.content;
   } catch (error) {
     console.error("OpenRouter Error:", error.response?.data || error.message);
-    return "Sorry, something went wrong.";
+    return "Error getting AI response";
   }
 }
 
-// API route
+// 📌 Route for text Q&A
 app.post("/ask-ai", async (req, res) => {
   const { message } = req.body;
-  if (!message) {
-    return res.status(400).json({ error: "Message is required" });
-  }
+  if (!message) return res.status(400).json({ error: "Message is required" });
 
   const reply = await callOpenRouter(message);
   res.json({ reply });
 });
 
-// Start server
+// 📌 Call OpenRouter to check food in image
+async function checkFoodInImage(base64Image) {
+  try {
+    const response = await api.post("/chat/completions", {
+      model: "openrouter/sonoma-dusk-alpha", // vision model
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an AI that determines if an image contains food. Reply only with 'yes' or 'Imagen no contiene comida'.",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Does this image contain food?" },
+            { type: "image_url", image_url: `data:image/jpeg;base64,${base64Image}` },
+          ],
+        },
+      ],
+    });
+
+    return response.data.choices[0].message.content;
+  } catch (error) {
+    console.error("OpenRouter Error:", error.response?.data || error.message);
+    return "Error analyzing image";
+  }
+}
+
+// 📌 Route for image analysis
+app.post("/check-food", upload.single("image"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+
+  try {
+    const fileData = fs.readFileSync(req.file.path, { encoding: "base64" });
+    const result = await checkFoodInImage(fileData);
+
+    fs.unlinkSync(req.file.path); // clean temp file
+    res.json({ result });
+  } catch (err) {
+    console.error("Image Processing Error:", err.message);
+    res.status(500).json({ error: "Error processing image" });
+  }
+});
+
 const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
