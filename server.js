@@ -41,49 +41,7 @@ const api = axios.create({
   },
 });
 
-// ---------------------------
-// your existing calculate-nutrition route (unchanged)
-// ---------------------------
-app.post("/calculate-nutrition", (req, res) => {
-  const { age, height, weight, trainsPerWeek, activity, goal, gender } = req.body;
-
-  // Harris-Benedict BMR formula
-  let bmr;
-  if (gender === "Male") {
-    bmr = 10 * weight + 6.25 * height - 5 * age + 5; // for men
-  } else {
-    bmr = 10 * weight + 6.25 * height - 5 * age - 161; // for women
-  }
-
-  // Activity multipliers
-  let activityMultiplier = 1.2;
-  if (activity === "Poco activo") activityMultiplier = 1.375;
-  if (activity === "Normal") activityMultiplier = 1.55;
-  if (activity === "Activo") activityMultiplier = 1.725;
-  if (activity === "Muy activo") activityMultiplier = 1.9;
-
-  let calories = bmr * activityMultiplier;
-
-  // Adjust based on goal
-  if (goal === "Gain") calories += 300;
-  if (goal === "Lose") calories -= 300;
-
-  // Macronutrient split
-  const protein = Math.round((0.3 * calories) / 4);
-  const fat = Math.round((0.3 * calories) / 9);
-  const carbs = Math.round((0.4 * calories) / 4);
-
-  res.json({
-    calories: Math.round(calories),
-    protein,
-    fat,
-    carbs,
-  });
-});
-
-// ---------------------------
-// existing image analysis methods (unchanged)
-// ---------------------------
+//  Image analysis route
 async function checkFoodInImage(base64Image) {
   try {
     const response = await api.post("/chat/completions", {
@@ -134,17 +92,18 @@ app.post("/check-food", upload.single("image"), async (req, res) => {
   }
 });
 
-// ---------------------------
-// NEW: Save nutrition in MongoDB
-// ---------------------------
-/*
-  POST /save-nutrition
-  Body should contain: {
-    gender, age, height, weight, trainsPerWeek, activity, goal,
-    calories, protein, fat, carbs,
-    optional: note, date, userId (future)
+// Nutrition 
+// 📌 Route to get all nutrition records
+app.get("/get-nutrition", async (req, res) => {
+  try {
+    const nutritions = await Nutrition.find(); // get all docs
+    res.json(nutritions);
+  } catch (err) {
+    console.error("❌ Error fetching nutrition:", err);
+    res.status(500).json({ error: "Failed to fetch nutrition data" });
   }
-*/
+});
+
 app.post("/save-nutrition", async (req, res) => {
   try {
     // accept all fields sent by frontend
@@ -198,6 +157,44 @@ app.post("/save-nutrition", async (req, res) => {
     res.status(500).json({ error: "Error saving nutrition plan" });
   }
 });
+
+app.post("/calculate-nutrition", (req, res) => {
+  const { age, height, weight, trainsPerWeek, activity, goal, gender } = req.body;
+
+  // Harris-Benedict BMR formula
+  let bmr;
+  if (gender === "Male") {
+    bmr = 10 * weight + 6.25 * height - 5 * age + 5; // for men
+  } else {
+    bmr = 10 * weight + 6.25 * height - 5 * age - 161; // for women
+  }
+
+  // Activity multipliers
+  let activityMultiplier = 1.2;
+  if (activity === "Poco activo") activityMultiplier = 1.375;
+  if (activity === "Normal") activityMultiplier = 1.55;
+  if (activity === "Activo") activityMultiplier = 1.725;
+  if (activity === "Muy activo") activityMultiplier = 1.9;
+
+  let calories = bmr * activityMultiplier;
+
+  // Adjust based on goal
+  if (goal === "Gain") calories += 300;
+  if (goal === "Lose") calories -= 300;
+
+  // Macronutrient split
+  const protein = Math.round((0.3 * calories) / 4);
+  const fat = Math.round((0.3 * calories) / 9);
+  const carbs = Math.round((0.4 * calories) / 4);
+
+  res.json({
+    calories: Math.round(calories),
+    protein,
+    fat,
+    carbs,
+  });
+});
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
