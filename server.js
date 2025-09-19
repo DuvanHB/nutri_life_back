@@ -1,109 +1,54 @@
-const express = require("express");
-const cors = require("cors");
-const multer = require("multer");
-const dotenv = require("dotenv");
-const OpenAI = require("openai");
+import express from "express";
+import cors from "cors";
+import axios from "axios";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
-const PORT = 5000;
-
-// Middleware
 app.use(cors());
-app.use(express.json()); // 👉 necesario para leer JSON en POST
+app.use(express.json()); // for parsing JSON requests
 
-// Multer setup: store files in memory
-const upload = multer({ storage: multer.memoryStorage() });
-
-// OpenAI setup
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// OpenRouter client
+const api = axios.create({
+  baseURL: "https://openrouter.ai/api/v1",
+  headers: {
+    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    "Content-Type": "application/json",
+  },
 });
 
-// Simple test route
-app.get("/", (req, res) => {
-  res.send("Hello from Node.js backend 🚀");
-});
-
-// Test route for haiku
-app.get("/haiku", async (req, res) => {
+// Function to call OpenRouter
+async function callOpenRouter(userMessage) {
   try {
-    const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input: "Write a haiku about AI",
-    });
-
-    res.json({ haiku: response.output[0].content[0].text });
-  } catch (err) {
-    console.error("❌ Error generating haiku:", err);
-    res.status(500).json({ error: "Failed to generate haiku" });
-  }
-});
-
-// Route to process image and estimate calories
-app.post("/process-image", upload.single("image"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No image uploaded" });
-    }
-
-    console.log("📸 Received file:", req.file.originalname);
-
-    // Convert buffer to base64
-    const base64Image = req.file.buffer.toString("base64");
-    const imageData = `data:${req.file.mimetype};base64,${base64Image}`;
-
-    // Call GPT-4 Vision
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const response = await api.post("/chat/completions", {
+      model: "nvidia/nemotron-nano-9b-v2:free", // any supported model
       messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Estimate the number of calories in this food. Respond with only the number." },
-            { type: "image_url", image_url: { url: imageData } },
-          ],
-        },
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: userMessage },
       ],
     });
 
-    const result = response.choices[0].message.content.trim();
-    res.json({ calories: result });
-  } catch (err) {
-    console.error("❌ Error processing image:", err);
-    res.status(500).json({ error: "Failed to process image" });
+    return response.data.choices[0].message.content;
+  } catch (error) {
+    console.error("OpenRouter Error:", error.response?.data || error.message);
+    return "Sorry, something went wrong.";
   }
-});
+}
 
-// ✅ NEW: Route to process text and estimate calories
-app.post("/process-text", async (req, res) => {
-  try {
-    const { food } = req.body;
-
-    if (!food) {
-      return res.status(400).json({ error: "Food description is required" });
-    }
-
-    console.log("🍔 Received food text:", food);
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You are a nutrition assistant. Estimate calories based on food description." },
-        { role: "user", content: `Estimate the calories in: ${food}. Respond with only the number.` },
-      ],
-    });
-
-    const result = response.choices[0].message.content.trim();
-    res.json({ food, calories: result });
-  } catch (err) {
-    console.error("❌ Error processing text:", err);
-    res.status(500).json({ error: "Failed to process text" });
+// API route
+app.post("/ask-ai", async (req, res) => {
+  const { message } = req.body;
+  if (!message) {
+    return res.status(400).json({ error: "Message is required" });
   }
+
+  const reply = await callOpenRouter(message);
+  res.json({ reply });
 });
 
 // Start server
+const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
