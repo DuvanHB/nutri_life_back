@@ -49,7 +49,7 @@ app.post("/ask-ai", async (req, res) => {
   res.json({ reply });
 });
 
-// 📌 Call OpenRouter to check food in image
+// 📌 Call OpenRouter to check food in image and return nutrition info + health check
 async function checkFoodInImage(base64Image) {
   try {
     const response = await api.post("/chat/completions", {
@@ -57,13 +57,21 @@ async function checkFoodInImage(base64Image) {
       messages: [
         {
           role: "system",
-          content:
-            "You are an AI that determines if an image contains food. Reply only with 'yes' or 'Imagen no contiene comida'.",
+          content: `You are an AI nutritionist.
+          If the image contains food, analyze it and respond ONLY in JSON format like this:
+          {
+            "Calories": "XXX kcal",
+            "Protein": "XX g",
+            "Fat": "XX g",
+            "Carbohydrates": "XX g",
+            "Healthiness": "Healthy" or "Unhealthy"
+          }
+          If the image does not contain food, reply exactly with: "Imagen no contiene comida".`,
         },
         {
           role: "user",
           content: [
-            { type: "text", text: "Does this image contain food?" },
+            { type: "text", text: "Analyze this image and tell me if it contains food. If yes, give nutrition facts and if it looks healthy or unhealthy." },
             { type: "image_url", image_url: `data:image/jpeg;base64,${base64Image}` },
           ],
         },
@@ -76,6 +84,7 @@ async function checkFoodInImage(base64Image) {
     return "Error analyzing image";
   }
 }
+
 
 // 📌 Route for image analysis
 app.post("/check-food", upload.single("image"), async (req, res) => {
