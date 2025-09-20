@@ -52,13 +52,14 @@ async function checkFoodInImage(base64Image) {
           content: `You are an AI nutritionist.
           If the image contains food, analyze it and respond ONLY in JSON format like this:
           {
-            "Calories": "XXX kcal",
-            "Protein": "XX g",
-            "Fat": "XX g",
-            "Carbohydrates": "XX g",
+            "Calories": 0,
+            "Protein": 0,
+            "Fat": 0,
+            "Carbohydrates": 0,
             "Healthiness": "Healthy" or "Unhealthy"
           }
-          If the image does not contain food, reply exactly with: "Imagen no contiene comida".`,
+          Return only exact numbers. Do NOT use ranges. Do NOT add units (g, kg, kcal, etc.).`
+
         },
         {
           role: "user",
